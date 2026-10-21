@@ -4,6 +4,7 @@ Solar panel fault detection and power prediction, with a Streamlit dashboard.
 
 ## What it does
 
+- Array monitor: change the sensor readings and every panel in a 40-panel array is scanned automatically; faulty panels light up on a live map
 - Detects six conditions: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault, Degradation
 - Predicts the power a panel should produce from weather and panel condition
 - Explains every verdict with SHAP

@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src import ui
-from src.data_generator import FAULTS, add_dc_power, generate_dataset
+from src.data_generator import CLF_FEATURES, FAULTS, add_dc_power, generate_dataset
 from src.explain import global_importance, local_contributions, make_explainer
 from src.predict import ACTIONS, batch_predict, diagnose
 from src.train import ensure_bundle, train_all
@@ -33,6 +33,26 @@ GROUPS = [
     ("Panel condition", ["dust_index", "panel_age", "module_temp", "shading_pct"]),
     ("Electrical readings", ["dc_voltage", "dc_current", "inverter_temp"]),
 ]
+
+
+GRID_ROWS = 5
+GRID_COLS = 8
+SITE_FIELDS = ["hour", "irradiance", "ambient_temp", "humidity", "wind_speed"]
+SITE_DEFAULTS = {"hour": 12.0, "irradiance": 850.0, "ambient_temp": 30.0, "humidity": 40.0, "wind_speed": 3.0}
+EDIT_FIELDS = ["dust_index", "shading_pct", "module_temp", "panel_age", "dc_voltage", "dc_current", "inverter_temp"]
+SHORT_NAMES = {
+    "Normal": "OK",
+    "Soiling": "Dusty",
+    "Partial Shading": "Shaded",
+    "Hotspot": "Hot",
+    "Inverter Fault": "Inverter",
+    "Degradation": "Aged",
+}
+DENSITY = {
+    "Few faults": [0.80, 0.04, 0.05, 0.04, 0.04, 0.03],
+    "Some faults": [0.55, 0.09, 0.09, 0.09, 0.09, 0.09],
+    "Many faults": [0.25, 0.15, 0.15, 0.15, 0.15, 0.15],
+}
 
 
 @st.cache_resource(show_spinner="Training the models for the first time. This takes around a minute.")
@@ -83,6 +103,196 @@ def prepare_inputs():
 
 def read_inputs():
     return {name: float(st.session_state["in_" + name]) for name in FIELDS}
+
+
+@st.cache_data(show_spinner=False)
+def simulate_array(site_values, seed, density):
+    site = dict(zip(SITE_FIELDS, site_values))
+    count = GRID_ROWS * GRID_COLS
+    data = generate_dataset(count, seed, site=site, fault_probs=DENSITY[density])
+    data = data.drop(columns=["power_kw", "fault_id", "fault"])
+    data.insert(0, "panel_id", [chr(65 + i // GRID_COLS) + str(i % GRID_COLS + 1) for i in range(count)])
+    return data
+
+
+def snap(name, value):
+    _, lo, hi, step = FIELDS[name]
+    return float(min(max(round(value / step) * step, lo), hi))
+
+
+def bump_seed():
+    st.session_state["array_seed"] = st.session_state.get("array_seed", 7) + 1
+    st.session_state["overrides"] = {}
+
+
+def clear_edits():
+    st.session_state["overrides"] = {}
+    current = st.session_state.get("edit_pid")
+    if current:
+        st.session_state["use_" + current] = False
+
+
+def page_array(bundle, token):
+    st.markdown(
+        ui.masthead(
+            "Array monitor",
+            "Change the sensor readings. SolarSense scans every panel and shows which ones are faulty and what is wrong with each.",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    st.session_state.setdefault("array_seed", 7)
+    st.session_state.setdefault("overrides", {})
+
+    columns = st.columns(5)
+    site = []
+    for column, name in zip(columns, SITE_FIELDS):
+        label, lo, hi, step = FIELDS[name]
+        with column:
+            site.append(st.slider(label, lo, hi, SITE_DEFAULTS[name], step=step, key="site_" + name))
+
+    control_a, control_b, control_c = st.columns([2, 1, 3])
+    density = control_a.selectbox("How faulty is this array?", list(DENSITY), index=1)
+    control_b.write("")
+    control_b.button("New sensor feed", on_click=bump_seed)
+
+    data = simulate_array(tuple(site), st.session_state["array_seed"], density).copy()
+    ids = data["panel_id"].tolist()
+
+    with st.expander("Edit one panel's sensors by hand"):
+        pick = st.selectbox("Panel", ids, key="edit_pid")
+        row = data[data["panel_id"] == pick].iloc[0]
+        saved = st.session_state["overrides"].get(pick, {})
+        edit_columns = st.columns(4)
+        edits = {}
+        for i, name in enumerate(EDIT_FIELDS):
+            label, lo, hi, step = FIELDS[name]
+            start = snap(name, saved.get(name, float(row[name])))
+            with edit_columns[i % 4]:
+                edits[name] = st.slider(label, lo, hi, start, step=step, key=f"edit_{pick}_{name}")
+        use = st.checkbox("Use these readings for this panel", value=pick in st.session_state["overrides"], key="use_" + pick)
+        if use:
+            st.session_state["overrides"][pick] = edits
+        else:
+            st.session_state["overrides"].pop(pick, None)
+        st.button("Clear all manual edits", on_click=clear_edits)
+
+    for pid, values in st.session_state["overrides"].items():
+        for name, value in values.items():
+            data.loc[data["panel_id"] == pid, name] = value
+
+    data = add_dc_power(data)
+    proba = bundle["clf"].predict_proba(data[bundle["clf_features"]])
+    label_ids = proba.argmax(axis=1)
+    data["detected"] = [FAULTS[i] for i in label_ids]
+    data["confidence"] = proba.max(axis=1)
+    data["expected_kw"] = bundle["reg"].predict(data[bundle["reg_features"]])
+
+    healthy = int((data["detected"] == "Normal").sum())
+    faulty = len(data) - healthy
+    a, b, c, d = st.columns(4)
+    a.markdown(ui.stat("Healthy panels", f"{healthy} of {len(data)}"), unsafe_allow_html=True)
+    b.markdown(ui.stat("Faults detected", str(faulty)), unsafe_allow_html=True)
+    c.markdown(ui.stat("Array output", f'{data["dc_power_kw"].sum():.1f} kW'), unsafe_allow_html=True)
+    top = data[data["detected"] != "Normal"]["detected"].value_counts()
+    d.markdown(ui.stat("Most common fault", top.idxmax() if len(top) else "None"), unsafe_allow_html=True)
+
+    z, text, hover = [], [], []
+    for r in range(GRID_ROWS):
+        z_row, t_row, h_row = [], [], []
+        for col in range(GRID_COLS):
+            item = data.iloc[r * GRID_COLS + col]
+            fault_index = FAULTS.index(item["detected"])
+            z_row.append(fault_index + 0.5)
+            t_row.append(f'{item["panel_id"]}<br>{SHORT_NAMES[item["detected"]]}')
+            h_row.append(
+                [
+                    item["panel_id"],
+                    item["detected"],
+                    f'{item["confidence"] * 100:.0f}%',
+                    f'{item["dc_power_kw"]:.2f} kW',
+                    f'{item["module_temp"]:.1f} °C',
+                ]
+            )
+        z.append(z_row)
+        text.append(t_row)
+        hover.append(h_row)
+
+    scale = []
+    for i, fault in enumerate(FAULTS):
+        scale.append([i / len(FAULTS), ui.FAULT_COLORS[fault]])
+        scale.append([(i + 1) / len(FAULTS), ui.FAULT_COLORS[fault]])
+
+    fig = go.Figure(
+        go.Heatmap(
+            z=z,
+            text=text,
+            customdata=hover,
+            colorscale=scale,
+            zmin=0,
+            zmax=len(FAULTS),
+            showscale=False,
+            xgap=6,
+            ygap=6,
+            texttemplate="%{text}",
+            textfont=dict(color="#06121F", size=13),
+            hovertemplate="<b>%{customdata[0]}</b><br>Detected: %{customdata[1]}<br>Confidence: %{customdata[2]}<br>Output: %{customdata[3]}<br>Module temp: %{customdata[4]}<extra></extra>",
+        )
+    )
+    fig.update_layout(title="Live array map")
+    fig.update_xaxes(visible=False)
+    fig.update_yaxes(visible=False, autorange="reversed")
+    st.plotly_chart(ui.style_figure(fig, 400))
+
+    counts = data["detected"].value_counts()
+    chips = "".join(
+        f'<span style="display:inline-block;margin:0 14px 6px 0;color:{ui.TEXT}">'
+        f'<span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:{ui.FAULT_COLORS[f]};margin-right:6px;vertical-align:-2px"></span>'
+        f"{f}: <b>{int(counts.get(f, 0))}</b></span>"
+        for f in FAULTS
+    )
+    st.markdown(chips, unsafe_allow_html=True)
+
+    flagged = data[data["detected"] != "Normal"].sort_values("confidence", ascending=False)
+    if flagged.empty:
+        st.success("No faults detected. Every panel is reading as healthy.")
+        return
+
+    st.markdown("#### Faulty panels and what to do")
+    table = flagged.assign(action=flagged["detected"].map(ACTIONS), confidence=(flagged["confidence"] * 100).round(0))[
+        ["panel_id", "detected", "confidence", "dc_power_kw", "action"]
+    ].rename(
+        columns={
+            "panel_id": "Panel",
+            "detected": "Fault",
+            "confidence": "Confidence %",
+            "dc_power_kw": "Output kW",
+            "action": "Recommended action",
+        }
+    )
+    st.dataframe(table.round(2), hide_index=True)
+
+    st.markdown("#### Why was this panel flagged?")
+    target = st.selectbox("Faulty panel", flagged["panel_id"].tolist(), key="why_pid")
+    chosen = data[data["panel_id"] == target].iloc[[0]]
+    class_id = FAULTS.index(chosen["detected"].iloc[0])
+    explainer = get_explainer(bundle["clf"], token)
+    contrib = local_contributions(explainer, chosen[bundle["clf_features"]], class_id).tail(7)
+    fig = go.Figure(
+        go.Bar(
+            x=contrib["shap"],
+            y=contrib["feature"],
+            orientation="h",
+            marker_color=[ui.RED if v > 0 else ui.BLUE for v in contrib["shap"]],
+            customdata=contrib["value"],
+            hovertemplate="%{y} = %{customdata:.2f}<br>SHAP %{x:.3f}<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        title=f'Readings behind the {chosen["detected"].iloc[0]} verdict on {target}',
+        xaxis_title="SHAP value (red raises the odds, blue lowers them)",
+    )
+    st.plotly_chart(ui.style_figure(fig, 340))
 
 
 def page_diagnosis(bundle, token):
@@ -434,12 +644,14 @@ def main():
     with st.sidebar:
         st.markdown("## ☀️ SolarSense AI")
         st.caption("Fault detection and power forecasting for solar arrays")
-        page = st.radio("Go to", ["Panel diagnosis", "Fleet dashboard", "Model lab", "How it works"])
+        page = st.radio("Go to", ["Array monitor", "Panel diagnosis", "Fleet dashboard", "Model lab", "How it works"])
         st.markdown("---")
         st.caption(f'Detector: {bundle["clf_name"]}')
         st.caption(f'Power model: {bundle["reg_name"]}')
 
-    if page == "Panel diagnosis":
+    if page == "Array monitor":
+        page_array(bundle, token)
+    elif page == "Panel diagnosis":
         page_diagnosis(bundle, token)
     elif page == "Fleet dashboard":
         page_fleet(bundle, token)
