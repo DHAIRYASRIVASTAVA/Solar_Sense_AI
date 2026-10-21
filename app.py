@@ -214,7 +214,7 @@ def page_diagnosis(bundle, token):
                     line=dict(width=0.5, color=ui.FAULT_COLORS[fault]),
                 )
             )
-        fig.add_vline(x=current, line_dash="dash", line_color=ui.INK)
+        fig.add_vline(x=current, line_dash="dash", line_color=ui.TEXT)
         fig.update_layout(title=f"How the diagnosis shifts as {label_s.lower()} changes", xaxis_title=label_s, yaxis_title="Probability (%)", hovermode="x unified")
         st.plotly_chart(ui.style_figure(fig, 380))
 
@@ -370,7 +370,7 @@ def page_lab(bundle, token):
             x=bundle["classes"],
             y=bundle["classes"],
             text_auto=True,
-            color_continuous_scale=[[0, "#FFFFFF"], [1, ui.BLUE]],
+            color_continuous_scale=[[0, ui.CARD], [1, ui.CYAN]],
             labels=dict(x="Predicted", y="Actual", color="Panels"),
             title="Confusion matrix on the test set",
         )
