@@ -19,34 +19,77 @@ FAULT_COLORS = {
 
 CSS = f"""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
-
-html, body, [class*="css"], .stApp {{
-    font-family: 'Source Sans 3', sans-serif;
-    color: {INK};
-}}
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap');
 
 .stApp {{
     background: {SKY};
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 1.05rem;
 }}
 
-h1, h2, h3, h4 {{
+.stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp h5 {{
     font-family: 'Outfit', sans-serif;
     color: {INK};
     letter-spacing: -0.01em;
 }}
 
-[data-testid="stSidebar"] {{
+.stApp p, .stApp li, .stApp label, .stApp [data-testid="stMarkdownContainer"],
+.stApp [data-testid="stWidgetLabel"] p, .stApp [data-testid="stCaptionContainer"] {{
+    color: {INK};
+}}
+
+.stApp [data-testid="stWidgetLabel"] p {{
+    font-weight: 600;
+    font-size: 1rem;
+}}
+
+.stApp [data-testid="stSliderThumbValue"],
+.stApp [data-testid="stSliderTickBarMin"],
+.stApp [data-testid="stSliderTickBarMax"] {{
+    color: {INK};
+    font-weight: 600;
+}}
+
+.stApp [data-baseweb="select"] > div {{
+    background: #FFFFFF;
+    border: 1.5px solid #B8C6D6;
+}}
+
+.stApp [data-baseweb="select"] div, .stApp [data-baseweb="select"] input {{
+    color: {INK};
+}}
+
+.stApp button[data-baseweb="tab"] {{
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    color: {SLATE};
+}}
+
+.stApp button[data-baseweb="tab"][aria-selected="true"] {{
+    color: {INK};
+}}
+
+.stApp [data-baseweb="tab-highlight"] {{
+    background-color: {SUN};
+    height: 4px;
+}}
+
+.stApp section[data-testid="stSidebar"] {{
     background: {INK};
 }}
 
-[data-testid="stSidebar"] * {{
-    color: #E8EEF5;
+.stApp section[data-testid="stSidebar"] * {{
+    color: #F1F5F9;
 }}
 
-[data-testid="stSidebar"] .stRadio label {{
-    padding: 6px 4px;
-    font-size: 1.02rem;
+.stApp section[data-testid="stSidebar"] [data-testid="stCaptionContainer"] * {{
+    color: #B9C7D6;
+}}
+
+.stApp section[data-testid="stSidebar"] .stRadio label {{
+    padding: 8px 6px;
+    font-size: 1.08rem;
+    font-weight: 500;
 }}
 
 .block-container {{
@@ -63,15 +106,15 @@ h1, h2, h3, h4 {{
     overflow: hidden;
 }}
 
-.masthead h1 {{
+.stApp .masthead h1 {{
     color: #FFFFFF;
     font-size: 2.3rem;
     margin: 0 0 6px 0;
 }}
 
-.masthead p {{
-    color: #B9C7D6;
-    font-size: 1.05rem;
+.stApp .masthead p {{
+    color: #DCE6F0;
+    font-size: 1.1rem;
     margin: 0;
     max-width: 560px;
 }}
@@ -80,34 +123,46 @@ h1, h2, h3, h4 {{
     position: absolute;
     right: -10px;
     top: -6px;
-    opacity: 0.95;
+}}
+
+@media (max-width: 760px) {{
+    .masthead svg {{
+        display: none;
+    }}
 }}
 
 .stat {{
     background: #FFFFFF;
-    border-left: 5px solid {BLUE};
+    border-left: 6px solid {BLUE};
     border-radius: 4px 14px 14px 4px;
     padding: 14px 18px;
     margin-bottom: 10px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}}
+
+.stat:hover {{
+    transform: translateY(-3px);
+    box-shadow: 0 8px 18px rgba(15, 36, 58, 0.14);
 }}
 
 .stat .label {{
-    font-size: 0.88rem;
-    color: {SLATE};
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #3D4E60;
     margin-bottom: 2px;
 }}
 
 .stat .figure {{
     font-family: 'Outfit', sans-serif;
-    font-size: 1.75rem;
+    font-size: 1.8rem;
     font-weight: 600;
     color: {INK};
     line-height: 1.15;
 }}
 
 .stat .note {{
-    font-size: 0.85rem;
-    color: {SLATE};
+    font-size: 0.9rem;
+    color: #3D4E60;
     margin-top: 2px;
 }}
 
@@ -115,24 +170,27 @@ h1, h2, h3, h4 {{
     border-radius: 14px;
     padding: 20px 22px;
     background: #FFFFFF;
-    border-top: 6px solid {BLUE};
+    border-top: 8px solid {BLUE};
 }}
 
-.verdict h2 {{
-    margin: 0 0 4px 0;
-    font-size: 1.7rem;
+.stApp .verdict h2 {{
+    margin: 0 0 6px 0;
+    font-size: 1.9rem;
+    color: {INK};
 }}
 
-.verdict p {{
+.stApp .verdict p {{
     margin: 0;
-    color: {SLATE};
+    color: #2A3B4D;
+    font-size: 1.08rem;
 }}
 
-.panel-note {{
+.stApp .panel-note {{
     background: #FFFFFF;
     border-radius: 12px;
     padding: 14px 18px;
     color: {INK};
+    border-left: 6px solid {SUN};
 }}
 
 div[data-testid="stPlotlyChart"] {{
@@ -141,21 +199,28 @@ div[data-testid="stPlotlyChart"] {{
     padding: 6px;
 }}
 
-.stButton > button {{
+.stApp .stButton > button, .stApp .stDownloadButton > button {{
     background: {SUN};
     color: {INK};
     border: none;
-    font-weight: 600;
+    font-weight: 700;
     border-radius: 10px;
-    padding: 0.5rem 1.2rem;
+    padding: 0.55rem 1.3rem;
+    transition: transform 0.12s ease, background 0.12s ease;
 }}
 
-.stButton > button:hover {{
+.stApp .stButton > button p, .stApp .stDownloadButton > button p {{
+    color: {INK};
+    font-weight: 700;
+}}
+
+.stApp .stButton > button:hover, .stApp .stDownloadButton > button:hover {{
     background: #FFC233;
     color: {INK};
+    transform: translateY(-2px);
 }}
 
-.stButton > button:focus-visible {{
+.stApp .stButton > button:focus-visible, .stApp .stDownloadButton > button:focus-visible {{
     outline: 3px solid {BLUE};
 }}
 </style>
@@ -198,7 +263,7 @@ def style_figure(fig, height=360):
         margin=dict(l=16, r=16, t=48, b=16),
         paper_bgcolor="#FFFFFF",
         plot_bgcolor="#FFFFFF",
-        font=dict(family="Source Sans 3, sans-serif", color=INK, size=13),
+        font=dict(family="Source Sans 3, sans-serif", color=INK, size=14),
         title=dict(font=dict(family="Outfit, sans-serif", size=17)),
         legend=dict(bgcolor="rgba(255,255,255,0)"),
     )

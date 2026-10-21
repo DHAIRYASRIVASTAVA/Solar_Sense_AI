@@ -7,7 +7,8 @@ Solar panel fault detection and power prediction, with a Streamlit dashboard.
 - Detects six conditions: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault, Degradation
 - Predicts the power a panel should produce from weather and panel condition
 - Explains every verdict with SHAP
-- Shows a fleet dashboard of 2,500 simulated panels
+- Shows a fleet dashboard of 2,500 simulated panels with pickable chart axes and a CSV export
+- Has a what-if explorer that sweeps any reading and shows how the diagnosis shifts
 
 ## Tech stack
 

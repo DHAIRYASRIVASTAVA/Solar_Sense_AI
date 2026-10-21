@@ -1,10 +1,11 @@
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
 
 from src import ui
-from src.data_generator import FAULTS, generate_dataset
+from src.data_generator import FAULTS, add_dc_power, generate_dataset
 from src.explain import global_importance, local_contributions, make_explainer
 from src.predict import ACTIONS, batch_predict, diagnose
 from src.train import ensure_bundle, train_all
@@ -71,6 +72,7 @@ def apply_preset():
     chosen = st.session_state["preset"]
     for name, value in preset_table()[chosen].items():
         st.session_state["in_" + name] = value
+    st.toast("Loaded a typical " + chosen.lower() + " reading")
 
 
 def prepare_inputs():
@@ -113,66 +115,107 @@ def page_diagnosis(bundle, token):
     label = result["label"]
     color = ui.FAULT_COLORS[label]
 
-    st.markdown("---")
-    left, right = st.columns([3, 2])
-    with left:
-        st.markdown(
-            f'<div class="verdict" style="border-top-color:{color}">'
-            f"<h2>{label}</h2><p>{ACTIONS[label]}</p></div>",
-            unsafe_allow_html=True,
-        )
-        gap = result["expected_kw"] - result["measured_kw"]
-        gap_pct = gap / result["expected_kw"] * 100 if result["expected_kw"] > 0 else 0.0
-        st.write("")
-        a, b, c = st.columns(3)
-        a.markdown(
-            ui.stat("Expected from conditions", f'{result["expected_kw"]:.2f} kW', "regression model"),
-            unsafe_allow_html=True,
-        )
-        b.markdown(
-            ui.stat("Measured DC power", f'{result["measured_kw"]:.2f} kW', "voltage × current"),
-            unsafe_allow_html=True,
-        )
-        c.markdown(
-            ui.stat("Gap", f"{gap_pct:+.1f}%", "expected minus measured"),
-            unsafe_allow_html=True,
-        )
-    with right:
-        st.plotly_chart(ui.gauge(result["confidence"], "Model confidence"))
+    tab_a, tab_b = st.tabs(["Diagnosis", "What-if explorer"])
 
-    left, right = st.columns(2)
-    with left:
-        order = sorted(range(len(FAULTS)), key=lambda i: result["proba"][i])
-        fig = go.Figure(
-            go.Bar(
-                x=[result["proba"][i] * 100 for i in order],
-                y=[FAULTS[i] for i in order],
-                orientation="h",
-                marker_color=[ui.FAULT_COLORS[FAULTS[i]] for i in order],
-                text=[f"{result['proba'][i] * 100:.1f}%" for i in order],
-                textposition="outside",
+    with tab_a:
+        st.markdown("---")
+        left, right = st.columns([3, 2])
+        with left:
+            st.markdown(
+                f'<div class="verdict" style="border-top-color:{color}">'
+                f"<h2>{label}</h2><p>{ACTIONS[label]}</p></div>",
+                unsafe_allow_html=True,
             )
-        )
-        fig.update_layout(title="Probability of each condition", xaxis_title="Probability (%)")
-        fig.update_xaxes(range=[0, 115])
-        st.plotly_chart(ui.style_figure(fig, 380))
-    with right:
-        explainer = get_explainer(bundle["clf"], token)
-        contrib = local_contributions(explainer, result["frame"], result["label_id"]).tail(8)
-        fig = go.Figure(
-            go.Bar(
-                x=contrib["shap"],
-                y=contrib["feature"],
-                orientation="h",
-                marker_color=[ui.RED if v > 0 else ui.BLUE for v in contrib["shap"]],
-                customdata=contrib["value"],
-                hovertemplate="%{y} = %{customdata:.2f}<br>SHAP %{x:.3f}<extra></extra>",
+            gap = result["expected_kw"] - result["measured_kw"]
+            gap_pct = gap / result["expected_kw"] * 100 if result["expected_kw"] > 0 else 0.0
+            st.write("")
+            a, b, c = st.columns(3)
+            a.markdown(
+                ui.stat("Expected from conditions", f'{result["expected_kw"]:.2f} kW', "regression model"),
+                unsafe_allow_html=True,
             )
+            b.markdown(
+                ui.stat("Measured DC power", f'{result["measured_kw"]:.2f} kW', "voltage × current"),
+                unsafe_allow_html=True,
+            )
+            c.markdown(
+                ui.stat("Gap", f"{gap_pct:+.1f}%", "expected minus measured"),
+                unsafe_allow_html=True,
+            )
+        with right:
+            st.plotly_chart(ui.gauge(result["confidence"], "Model confidence"))
+
+        left, right = st.columns(2)
+        with left:
+            order = sorted(range(len(FAULTS)), key=lambda i: result["proba"][i])
+            fig = go.Figure(
+                go.Bar(
+                    x=[result["proba"][i] * 100 for i in order],
+                    y=[FAULTS[i] for i in order],
+                    orientation="h",
+                    marker_color=[ui.FAULT_COLORS[FAULTS[i]] for i in order],
+                    text=[f"{result['proba'][i] * 100:.1f}%" for i in order],
+                    textposition="outside",
+                )
+            )
+            fig.update_layout(title="Probability of each condition", xaxis_title="Probability (%)")
+            fig.update_xaxes(range=[0, 115])
+            st.plotly_chart(ui.style_figure(fig, 380))
+        with right:
+            explainer = get_explainer(bundle["clf"], token)
+            contrib = local_contributions(explainer, result["frame"], result["label_id"]).tail(8)
+            fig = go.Figure(
+                go.Bar(
+                    x=contrib["shap"],
+                    y=contrib["feature"],
+                    orientation="h",
+                    marker_color=[ui.RED if v > 0 else ui.BLUE for v in contrib["shap"]],
+                    customdata=contrib["value"],
+                    hovertemplate="%{y} = %{customdata:.2f}<br>SHAP %{x:.3f}<extra></extra>",
+                )
+            )
+            fig.update_layout(
+                title=f"What pushed the model toward {label}",
+                xaxis_title="SHAP value (red raises the odds, blue lowers them)",
+            )
+            st.plotly_chart(ui.style_figure(fig, 380))
+
+    with tab_b:
+        st.markdown("Pick one reading and slide it across its full range. Everything else stays at the values you set above.")
+        sweep_name = st.selectbox(
+            "Reading to vary",
+            list(FIELDS),
+            format_func=lambda k: FIELDS[k][0],
+            key="sweep_name",
         )
-        fig.update_layout(
-            title=f"What pushed the model toward {label}",
-            xaxis_title="SHAP value (red raises the odds, blue lowers them)",
-        )
+        label_s, lo, hi, _ = FIELDS[sweep_name]
+        grid = np.linspace(lo, hi, 60)
+        base = read_inputs()
+        sweep = add_dc_power(pd.DataFrame([{**base, sweep_name: float(v)} for v in grid]))
+        power_curve = bundle["reg"].predict(sweep[bundle["reg_features"]])
+        probs = bundle["clf"].predict_proba(sweep[bundle["clf_features"]])
+        current = base[sweep_name]
+
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=grid, y=power_curve, mode="lines", line=dict(color=ui.BLUE, width=3), name="Expected power"))
+        fig.add_vline(x=current, line_dash="dash", line_color=ui.SUN, annotation_text="your value")
+        fig.update_layout(title=f"Expected power as {label_s.lower()} changes", xaxis_title=label_s, yaxis_title="Power (kW)")
+        st.plotly_chart(ui.style_figure(fig, 360))
+
+        fig = go.Figure()
+        for i, fault in enumerate(FAULTS):
+            fig.add_trace(
+                go.Scatter(
+                    x=grid,
+                    y=probs[:, i] * 100,
+                    mode="lines",
+                    stackgroup="one",
+                    name=fault,
+                    line=dict(width=0.5, color=ui.FAULT_COLORS[fault]),
+                )
+            )
+        fig.add_vline(x=current, line_dash="dash", line_color=ui.INK)
+        fig.update_layout(title=f"How the diagnosis shifts as {label_s.lower()} changes", xaxis_title=label_s, yaxis_title="Probability (%)", hovermode="x unified")
         st.plotly_chart(ui.style_figure(fig, 380))
 
 
@@ -216,18 +259,31 @@ def page_fleet(bundle, token):
         )
         st.plotly_chart(ui.style_figure(fig, 380))
     with right:
+        axis_options = {
+            "irradiance": "Irradiance (W/m²)",
+            "dc_power_kw": "DC power (kW)",
+            "module_temp": "Module temperature (°C)",
+            "ambient_temp": "Ambient temperature (°C)",
+            "dust_index": "Dust index",
+            "panel_age": "Panel age (years)",
+            "inverter_temp": "Inverter temperature (°C)",
+        }
+        pick_x, pick_y = st.columns(2)
+        x_axis = pick_x.selectbox("X axis", list(axis_options), format_func=lambda k: axis_options[k], index=0)
+        y_axis = pick_y.selectbox("Y axis", list(axis_options), format_func=lambda k: axis_options[k], index=1)
         sample = view.sample(min(len(view), 900), random_state=1)
         fig = px.scatter(
             sample,
-            x="irradiance",
-            y="dc_power_kw",
+            x=x_axis,
+            y=y_axis,
             color="predicted_fault",
             color_discrete_map=ui.FAULT_COLORS,
             opacity=0.7,
-            title="Output against sunlight",
-            labels={"irradiance": "Irradiance (W/m²)", "dc_power_kw": "DC power (kW)", "predicted_fault": "Condition"},
+            hover_data=["panel_id"],
+            title=f"{axis_options[y_axis]} against {axis_options[x_axis]}",
+            labels={x_axis: axis_options[x_axis], y_axis: axis_options[y_axis], "predicted_fault": "Condition"},
         )
-        st.plotly_chart(ui.style_figure(fig, 380))
+        st.plotly_chart(ui.style_figure(fig, 330))
 
     left, right = st.columns(2)
     with left:
@@ -259,7 +315,8 @@ def page_fleet(bundle, token):
 
     st.markdown("#### Panels that need attention first")
     view = view.assign(shortfall_kw=view["predicted_kw"] - view["dc_power_kw"])
-    attention = view[view["status"] == "Fault flagged"].sort_values("shortfall_kw", ascending=False).head(12)
+    attention_all = view[view["status"] == "Fault flagged"].sort_values("shortfall_kw", ascending=False)
+    attention = attention_all.head(12)
     table = attention[
         ["panel_id", "predicted_fault", "irradiance", "module_temp", "dc_power_kw", "predicted_kw", "shortfall_kw"]
     ].rename(
@@ -274,6 +331,12 @@ def page_fleet(bundle, token):
         }
     )
     st.dataframe(table.round(2), hide_index=True)
+    st.download_button(
+        "Download flagged panels as CSV",
+        attention_all.to_csv(index=False),
+        file_name="solarsense_flagged_panels.csv",
+        mime="text/csv",
+    )
 
 
 def page_lab(bundle, token):
