@@ -4,13 +4,12 @@ Solar panel fault detection and power prediction, with a Streamlit dashboard.
 
 ## What it does
 
-- Panel sensors: one panel drawn with thermal, light, dust, voltage, current and inverter sensors; change any reading and the model detects the fault and shows which sensors raised it
-- Array monitor: change the sensor readings and every panel in a 40-panel array is scanned automatically; faulty panels light up on a live map
-- Detects six conditions: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault, Degradation
-- Predicts the power a panel should produce from weather and panel condition
-- Explains every verdict with SHAP
-- Shows a fleet dashboard of 2,500 simulated panels with pickable chart axes and a CSV export
-- Has a what-if explorer that sweeps any reading and shows how the diagnosis shifts
+One solar panel is drawn with its sensors: three thermal sensors, four light sensors, a dust sensor, voltage and current sensors, an inverter temperature sensor and a weather mast.
+
+- Change any sensor reading and the model detects the fault: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault or Degradation
+- Each sensor shows OK, Warning or Alert, and which fault it watches for
+- SHAP shows which sensors pushed the model toward its verdict
+- A step-by-step guide explains how to resolve the detected fault
 
 ## Tech stack
 
@@ -66,8 +65,6 @@ Open `notebooks/train_on_colab.ipynb` in Colab, run all cells, then download `so
 3. Choose New app, pick the repository and branch, and set the main file to `app.py`.
 4. Under Advanced settings, choose Python 3.11.
 5. Deploy. If no trained file exists in `models/`, the first launch trains the models, which takes about a minute. After that the saved file is reused.
-
-The Model lab page has a Retrain button that rebuilds the dataset and models from inside the deployed app.
 
 ## Note
 

@@ -27,18 +27,3 @@ def local_contributions(explainer, frame, class_id):
     )
     out["impact"] = out["shap"].abs()
     return out.sort_values("impact", ascending=True).reset_index(drop=True)
-
-
-def global_importance(explainer, background):
-    raw = explainer.shap_values(background)
-    if isinstance(raw, list):
-        stacked = np.stack([np.abs(np.asarray(v)) for v in raw], axis=0)
-        score = stacked.mean(axis=(0, 1))
-    else:
-        raw = np.asarray(raw)
-        if raw.ndim == 3:
-            score = np.abs(raw).mean(axis=(0, 2))
-        else:
-            score = np.abs(raw).mean(axis=0)
-    out = pd.DataFrame({"feature": background.columns, "importance": score})
-    return out.sort_values("importance", ascending=True).reset_index(drop=True)
