@@ -1,7 +1,16 @@
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+
+try:
+    from zoneinfo import ZoneInfo
+
+    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    LOCAL_TZ = None
 
 from src import sensors as sn
 from src import ui
@@ -144,9 +153,41 @@ def panel_figure(r, levels):
     return ui.style_figure(fig, 500)
 
 
-def level_color(value):
-    colors = {"OK": ui.GREEN, "Warning": ui.SUN, "Alert": ui.RED, "Info": ui.BLUE}
-    return f"background-color: {colors[value]}; color: #06121F; font-weight: 700"
+LOG_FRONT = ["Time", "Fault", "Confidence %", "Action", "Note", "Expected kW", "Measured kW", "Alerts", "Warnings"]
+
+
+def sensor_column(name):
+    label, _, _, _, unit = sn.SENSORS[name]
+    return f"{label} ({unit})" if unit else label
+
+
+def now_text():
+    return datetime.now(LOCAL_TZ).strftime("%d %b %Y, %I:%M:%S %p")
+
+
+def record_snapshot():
+    entry = dict(st.session_state["latest"])
+    entry["Action"] = "Recorded"
+    entry["Note"] = st.session_state.get("log_note", "")
+    st.session_state["reading_log"].append(entry)
+    st.session_state["log_note"] = ""
+    st.toast("Readings recorded")
+
+
+def resolve_fault(fault):
+    entry = dict(st.session_state["latest"])
+    entry["Action"] = "Resolved: " + sn.FIXES[fault]
+    entry["Note"] = st.session_state.get("log_note", "")
+    st.session_state["reading_log"].append(entry)
+    st.session_state["log_note"] = ""
+    current = {name: st.session_state["sn_" + name] for name in sn.SENSORS if "sn_" + name in st.session_state}
+    for name, value in sn.fix_values(fault, current).items():
+        st.session_state["sn_" + name] = value
+    st.toast(sn.FIXES[fault] + ". Sensors updated.")
+
+
+def clear_log():
+    st.session_state["reading_log"] = []
 
 
 def page_panel(bundle, token):
@@ -157,6 +198,9 @@ def page_panel(bundle, token):
         ),
         unsafe_allow_html=True,
     )
+
+    st.session_state.setdefault("reading_log", [])
+    st.session_state.setdefault("log_note", "")
 
     if "sn_t1" not in st.session_state:
         for name, value in scenario_presets()["Normal"].items():
@@ -211,58 +255,69 @@ def page_panel(bundle, token):
     alerts = sum(1 for n, v in levels.items() if v == 2)
     warnings = sum(1 for n, v in levels.items() if v == 1)
 
+    snapshot = {
+        "Time": now_text(),
+        "Fault": label,
+        "Confidence %": round(result["confidence"] * 100, 1),
+        "Expected kW": round(result["expected_kw"], 2),
+        "Measured kW": round(result["measured_kw"], 2),
+        "Alerts": alerts,
+        "Warnings": warnings,
+    }
+    for name in sn.SENSORS:
+        snapshot[sensor_column(name)] = round(reading[name], 1)
+    st.session_state["latest"] = snapshot
+
+    raised = [sn.SHORT[n] for n, v in levels.items() if v == 2 and n in sn.SHORT]
     if label == "Normal":
         detail = "All sensors read within their normal range."
     else:
         detail = f"<b>Detected mainly by:</b> {top_group}"
+        if raised:
+            detail += f"<br><b>Sensors in alert:</b> {', '.join(raised)}"
 
-    verdict_col, evidence_col = st.columns([2, 3])
+    verdict_col, resolve_col = st.columns(2)
     with verdict_col:
         st.markdown(
             f'<div class="verdict" style="border-top-color:{ui.FAULT_COLORS[label]}">'
-            f"<h2>{label}</h2><p>{ACTIONS[label]}</p><p style=\"margin-top:8px\">{detail}</p></div>",
+            f'<h2>{label}</h2><p>{ACTIONS[label]}</p><p style="margin-top:8px">{detail}</p>'
+            f'<p style="margin-top:8px">Confidence {result["confidence"] * 100:.0f}%</p></div>',
             unsafe_allow_html=True,
         )
-        st.write("")
-        a, b = st.columns(2)
-        a.markdown(ui.stat("Confidence", f'{result["confidence"] * 100:.0f}%'), unsafe_allow_html=True)
-        b.markdown(ui.stat("Sensors alarming", f"{alerts} alert, {warnings} warning"), unsafe_allow_html=True)
-    with evidence_col:
-        ordered = sorted(grouped.items(), key=lambda item: item[1])
-        fig = go.Figure(
-            go.Bar(
-                x=[v for _, v in ordered],
-                y=[k for k, _ in ordered],
-                orientation="h",
-                marker_color=[ui.SUN if k == top_group and label != "Normal" else ui.BLUE for k, _ in ordered],
-                hovertemplate="%{y}<br>SHAP %{x:.3f}<extra></extra>",
-            )
+    with resolve_col:
+        steps = "".join(f"<li>{step}</li>" for step in RESOLUTION[label])
+        st.markdown(
+            f'<div class="panel-note"><b>How to resolve it</b>'
+            f'<ol style="margin:6px 0 0 0;padding-left:22px;line-height:1.7">{steps}</ol></div>',
+            unsafe_allow_html=True,
         )
-        fig.update_layout(title=f"Which sensors pushed the model toward {label}", xaxis_title="Combined SHAP value")
-        st.plotly_chart(ui.style_figure(fig, 330))
+        if label != "Normal":
+            st.write("")
+            st.button(f"Mark as resolved: {sn.FIXES[label]}", on_click=resolve_fault, args=(label,), key="btn_resolve")
 
-    st.markdown("#### How to resolve it")
-    steps = "".join(f"<li>{step}</li>" for step in RESOLUTION[label])
-    st.markdown(
-        f'<div class="panel-note"><ol style="margin:0;padding-left:22px;line-height:1.7">{steps}</ol></div>',
-        unsafe_allow_html=True,
-    )
     st.write("")
+    note_col, record_col = st.columns([4, 1])
+    note_col.text_input("Note for the log (optional)", key="log_note", placeholder="For example: checked on site, wash booked for Friday")
+    record_col.write("")
+    record_col.write("")
+    record_col.button("Record readings", on_click=record_snapshot, key="btn_record")
 
-    st.markdown("#### Every sensor, its status and the fault it watches")
-    rows = []
-    for name, (sensor_label, _, _, _, unit) in sn.SENSORS.items():
-        rows.append(
-            {
-                "Sensor": sensor_label,
-                "Reading": f"{reading[name]:.1f} {unit}".strip(),
-                "Status": sn.LEVEL_NAMES[levels[name]],
-                "Watches for": sn.WATCHES[name],
-            }
-        )
-    table = pd.DataFrame(rows)
-    st.dataframe(table.style.map(level_color, subset=["Status"]), hide_index=True)
-    st.caption("Status compares each reading with what the weather and time of day would normally produce. The fault verdict comes from the trained model.")
+    log = st.session_state["reading_log"]
+    with st.expander(f"Recorded readings ({len(log)})"):
+        if not log:
+            st.write("Nothing recorded yet.")
+        else:
+            frame = pd.DataFrame(log[::-1])
+            ordered = LOG_FRONT + [c for c in frame.columns if c not in LOG_FRONT]
+            st.dataframe(frame[ordered], hide_index=True)
+            download_col, clear_col = st.columns(2)
+            download_col.download_button(
+                "Download log as CSV",
+                pd.DataFrame(log).to_csv(index=False),
+                file_name="solarsense_reading_log.csv",
+                mime="text/csv",
+            )
+            clear_col.button("Clear log", on_click=clear_log)
 
 
 def main():

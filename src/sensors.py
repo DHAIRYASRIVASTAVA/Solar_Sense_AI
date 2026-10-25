@@ -103,6 +103,33 @@ LEVEL_NAMES = {-1: "Info", 0: "OK", 1: "Warning", 2: "Alert"}
 SCENARIO_SITE = {"hour": 12.0, "irradiance": 850.0, "ambient_temp": 30.0, "humidity": 40.0, "wind_speed": 3.0}
 
 
+FIXES = {
+    "Soiling": "Panel washed",
+    "Partial Shading": "Obstruction cleared",
+    "Hotspot": "Damaged cell repaired",
+    "Inverter Fault": "Inverter serviced and cooled",
+    "Degradation": "Panel replaced",
+}
+
+
+def fix_values(fault, r):
+    base = r["ambient_temp"] + r["irradiance"] * 0.026 - r["wind_speed"] * 0.7
+    sun = float(np.sin(np.pi * (r["hour"] - 6) / 12))
+    if fault == "Soiling":
+        values = {"dust_index": 8.0}
+    elif fault == "Partial Shading":
+        values = {"s1": 1.0, "s2": 1.0, "s3": 1.0, "s4": 1.0}
+    elif fault == "Hotspot":
+        values = {"t1": base + 0.5, "t2": base, "t3": base - 0.5}
+    elif fault == "Inverter Fault":
+        values = {"inverter_temp": 38 + 14 * sun}
+    elif fault == "Degradation":
+        values = {"panel_age": 3.0}
+    else:
+        values = {}
+    return {name: snap(name, value) for name, value in values.items()}
+
+
 def snap(name, value):
     _, lo, hi, step, _ = SENSORS[name]
     return float(min(max(round(value / step) * step, lo), hi))
