@@ -15,7 +15,7 @@ except Exception:
 from src import sensors as sn
 from src import ui
 from src.data_generator import FAULTS
-from src.explain import local_contributions, make_explainer
+from src.explain import local_contributions
 from src.predict import ACTIONS, RESOLUTION, diagnose
 from src.train import ensure_bundle
 
@@ -26,11 +26,6 @@ st.markdown(ui.CSS, unsafe_allow_html=True)
 @st.cache_resource(show_spinner="Training the models for the first time. This takes around a minute.")
 def get_bundle():
     return ensure_bundle()
-
-
-@st.cache_resource(show_spinner=False)
-def get_explainer(_model, token):
-    return make_explainer(_model)
 
 
 LEVEL_COLORS = {-1: ui.BLUE, 0: ui.GREEN, 1: ui.SUN, 2: ui.RED}
@@ -190,7 +185,7 @@ def clear_log():
     st.session_state["reading_log"] = []
 
 
-def page_panel(bundle, token):
+def page_panel(bundle):
     st.markdown(
         ui.masthead(
             "Panel sensors",
@@ -247,8 +242,7 @@ def page_panel(bundle, token):
     with right:
         st.plotly_chart(panel_figure(reading, levels))
 
-    explainer = get_explainer(bundle["clf"], token)
-    contrib = local_contributions(explainer, result["frame"], result["label_id"])
+    contrib = local_contributions(bundle["clf"], result["frame"], result["label_id"])
     grouped = sn.group_evidence(contrib)
     top_group = max(grouped, key=grouped.get)
 
@@ -322,8 +316,7 @@ def page_panel(bundle, token):
 
 def main():
     bundle = get_bundle()
-    token = f'{bundle["clf_name"]}-{bundle["n_samples"]}'
-    page_panel(bundle, token)
+    page_panel(bundle)
     st.caption(f'Fault detector: {bundle["clf_name"]}. Power model: {bundle["reg_name"]}. All sensor data is simulated.')
 
 

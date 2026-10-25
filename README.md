@@ -22,7 +22,7 @@ One solar panel is drawn with its sensors: three thermal sensors, four light sen
 | Model training | Google Colab |
 | Fault detection | Random Forest + XGBoost |
 | Power prediction | Scikit-learn regression |
-| Explainability | SHAP |
+| Explainability | SHAP (TreeSHAP, computed by XGBoost) |
 | Frontend + dashboard | Streamlit |
 | Charts | Plotly |
 | Model saving | Joblib |
@@ -50,23 +50,28 @@ solarsense-ai/
 
 ```
 pip install -r requirements.txt
-python src/train.py
 streamlit run app.py
 ```
 
-If you skip the training step, the app trains the models by itself on first launch and saves them with Joblib.
+A pre-trained model is included in `models/solarsense_bundle.joblib`, so the app starts straight away. To retrain it:
+
+```
+python src/train.py
+```
+
+If the model file is missing or was saved with different library versions, the app retrains on first launch (about 30 seconds).
 
 ## Train on Google Colab
 
-Open `notebooks/train_on_colab.ipynb` in Colab, run all cells, then download `solarsense_bundle.joblib` into the `models/` folder of this repo and commit it. The app loads that file instead of retraining.
+Open `notebooks/train_on_colab.ipynb` in Colab, run all cells, then download `solarsense_bundle.joblib` into the `models/` folder of this repo and commit it. Keep `scikit-learn` and `xgboost` at the versions pinned in `requirements.txt` so the file loads on Streamlit Cloud.
 
 ## Deploy on Streamlit Community Cloud
 
-1. Push this folder to a GitHub repository.
+1. Push this folder to a GitHub repository, including the `models/` folder.
 2. Open share.streamlit.io and sign in with GitHub.
 3. Choose New app, pick the repository and branch, and set the main file to `app.py`.
-4. Under Advanced settings, choose Python 3.11.
-5. Deploy. If no trained file exists in `models/`, the first launch trains the models, which takes about a minute. After that the saved file is reused.
+4. Under Advanced settings, choose Python 3.12.
+5. Deploy. The first build installs the packages, which takes a couple of minutes. Later restarts are quick.
 
 ## Note
 

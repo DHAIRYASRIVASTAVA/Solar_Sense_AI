@@ -6,7 +6,6 @@ import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor, RandomForestClassifier, RandomForestRegressor
 from sklearn.metrics import (
     accuracy_score,
-    confusion_matrix,
     f1_score,
     mean_absolute_error,
     mean_squared_error,
@@ -26,7 +25,7 @@ DATA_DIR = ROOT / "data"
 BUNDLE_PATH = MODEL_DIR / "solarsense_bundle.joblib"
 
 
-def train_all(n_samples=12000, seed=42, save=True):
+def train_all(n_samples=10000, seed=42, save=True):
     df = generate_dataset(n_samples, seed)
 
     X = df[CLF_FEATURES]
@@ -37,10 +36,10 @@ def train_all(n_samples=12000, seed=42, save=True):
 
     candidates = {
         "Random Forest": RandomForestClassifier(
-            n_estimators=250, max_depth=14, min_samples_leaf=2, n_jobs=-1, random_state=seed
+            n_estimators=150, max_depth=14, min_samples_leaf=2, n_jobs=-1, random_state=seed
         ),
         "XGBoost": XGBClassifier(
-            n_estimators=250,
+            n_estimators=200,
             max_depth=6,
             learning_rate=0.1,
             subsample=0.9,
@@ -64,8 +63,6 @@ def train_all(n_samples=12000, seed=42, save=True):
 
     best_clf_name = max(clf_scores, key=lambda k: clf_scores[k]["f1_macro"])
     best_clf = fitted[best_clf_name]
-    best_pred = best_clf.predict(X_te)
-    cm = confusion_matrix(y_te, best_pred, labels=list(range(len(FAULTS))))
 
     Xr = df[REG_FEATURES]
     yr = df["power_kw"]
@@ -76,10 +73,10 @@ def train_all(n_samples=12000, seed=42, save=True):
 
     reg_candidates = {
         "Random Forest Regressor": RandomForestRegressor(
-            n_estimators=250, min_samples_leaf=2, n_jobs=-1, random_state=seed
+            n_estimators=150, min_samples_leaf=2, n_jobs=-1, random_state=seed
         ),
         "Gradient Boosting Regressor": GradientBoostingRegressor(
-            n_estimators=300, max_depth=4, learning_rate=0.08, random_state=seed
+            n_estimators=200, max_depth=4, learning_rate=0.1, random_state=seed
         ),
     }
 
@@ -97,7 +94,6 @@ def train_all(n_samples=12000, seed=42, save=True):
 
     best_reg_name = max(reg_scores, key=lambda k: reg_scores[k]["r2"])
     best_reg = reg_fitted[best_reg_name]
-    reg_pred = best_reg.predict(Xr_te)
 
     bundle = {
         "clf": best_clf,
@@ -109,12 +105,6 @@ def train_all(n_samples=12000, seed=42, save=True):
         "classes": FAULTS,
         "clf_features": CLF_FEATURES,
         "reg_features": REG_FEATURES,
-        "confusion": cm,
-        "reg_test": {
-            "actual": yr_te.to_numpy()[:600],
-            "predicted": reg_pred[:600],
-        },
-        "background": X_te.sample(300, random_state=seed).reset_index(drop=True),
         "n_samples": int(n_samples),
     }
 
@@ -141,7 +131,7 @@ def ensure_bundle():
 
 
 if __name__ == "__main__":
-    samples = int(sys.argv[1]) if len(sys.argv) > 1 else 12000
+    samples = int(sys.argv[1]) if len(sys.argv) > 1 else 10000
     result = train_all(samples)
     print("Best classifier:", result["clf_name"], result["clf_scores"][result["clf_name"]])
     print("Best regressor:", result["reg_name"], result["reg_scores"][result["reg_name"]])

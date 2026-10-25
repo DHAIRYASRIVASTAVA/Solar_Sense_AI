@@ -1,8 +1,7 @@
 streamlit>=1.40
-numpy>=1.26
+numpy
 pandas>=2.1
-scikit-learn>=1.4
-xgboost>=2.0
-shap>=0.45
+scikit-learn==1.8.0
+xgboost==3.4.1
 plotly>=5.20
 joblib>=1.3
