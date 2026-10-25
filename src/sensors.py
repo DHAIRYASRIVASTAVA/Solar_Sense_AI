@@ -7,29 +7,29 @@ PANEL_ROWS = 6
 
 SENSORS = {
     "hour": ("Time of day", 6.0, 18.0, 0.25, "h"),
-    "irradiance": ("Pyranometer (sunlight)", 60.0, 1100.0, 10.0, "W/m²"),
-    "ambient_temp": ("Ambient temperature", 0.0, 50.0, 0.5, "°C"),
+    "irradiance": ("Sunlight sensor", 60.0, 1100.0, 10.0, "W/m²"),
+    "ambient_temp": ("Air temperature", 0.0, 50.0, 0.5, "°C"),
     "humidity": ("Humidity", 10.0, 100.0, 1.0, "%"),
     "wind_speed": ("Wind speed", 0.0, 20.0, 0.5, "m/s"),
-    "t1": ("Thermal sensor T1", 10.0, 110.0, 0.5, "°C"),
-    "t2": ("Thermal sensor T2", 10.0, 110.0, 0.5, "°C"),
-    "t3": ("Thermal sensor T3", 10.0, 110.0, 0.5, "°C"),
-    "s1": ("Light sensor S1 (shade)", 0.0, 100.0, 1.0, "%"),
-    "s2": ("Light sensor S2 (shade)", 0.0, 100.0, 1.0, "%"),
-    "s3": ("Light sensor S3 (shade)", 0.0, 100.0, 1.0, "%"),
-    "s4": ("Light sensor S4 (shade)", 0.0, 100.0, 1.0, "%"),
-    "dust_index": ("Dust sensor", 0.0, 100.0, 1.0, ""),
+    "t1": ("Heat sensor 1", 10.0, 110.0, 0.5, "°C"),
+    "t2": ("Heat sensor 2", 10.0, 110.0, 0.5, "°C"),
+    "t3": ("Heat sensor 3", 10.0, 110.0, 0.5, "°C"),
+    "s1": ("Shade sensor 1", 0.0, 100.0, 1.0, "% blocked"),
+    "s2": ("Shade sensor 2", 0.0, 100.0, 1.0, "% blocked"),
+    "s3": ("Shade sensor 3", 0.0, 100.0, 1.0, "% blocked"),
+    "s4": ("Shade sensor 4", 0.0, 100.0, 1.0, "% blocked"),
+    "dust_index": ("Dust sensor", 0.0, 100.0, 1.0, "0 to 100"),
     "dc_voltage": ("Voltage sensor", 200.0, 450.0, 1.0, "V"),
     "dc_current": ("Current sensor", 0.0, 25.0, 0.1, "A"),
     "inverter_temp": ("Inverter temperature sensor", 25.0, 90.0, 0.5, "°C"),
-    "panel_age": ("Panel age (nameplate)", 0.0, 25.0, 0.5, "years"),
+    "panel_age": ("Panel age", 0.0, 25.0, 0.5, "years"),
 }
 
 TABS = {
     "Weather": ["hour", "irradiance", "ambient_temp", "humidity", "wind_speed"],
-    "Thermal": ["t1", "t2", "t3"],
-    "Light": ["s1", "s2", "s3", "s4"],
-    "Dust and electrical": ["dust_index", "dc_voltage", "dc_current", "inverter_temp", "panel_age"],
+    "Heat": ["t1", "t2", "t3"],
+    "Shade": ["s1", "s2", "s3", "s4"],
+    "Dust and power": ["dust_index", "dc_voltage", "dc_current", "inverter_temp", "panel_age"],
 }
 
 POSITIONS = {
@@ -48,18 +48,33 @@ POSITIONS = {
 }
 
 SHORT = {
-    "t1": "T1",
-    "t2": "T2",
-    "t3": "T3",
-    "s1": "S1",
-    "s2": "S2",
-    "s3": "S3",
-    "s4": "S4",
+    "t1": "Heat 1",
+    "t2": "Heat 2",
+    "t3": "Heat 3",
+    "s1": "Shade 1",
+    "s2": "Shade 2",
+    "s3": "Shade 3",
+    "s4": "Shade 4",
     "dust_index": "Dust",
-    "dc_voltage": "Volt",
-    "dc_current": "Amp",
-    "inverter_temp": "Inv",
-    "irradiance": "Sun",
+    "dc_voltage": "Volts",
+    "dc_current": "Amps",
+    "inverter_temp": "Inverter",
+    "irradiance": "Sunlight",
+}
+
+CHIP_UNITS = {
+    "t1": "°C",
+    "t2": "°C",
+    "t3": "°C",
+    "s1": "%",
+    "s2": "%",
+    "s3": "%",
+    "s4": "%",
+    "dust_index": "",
+    "dc_voltage": " V",
+    "dc_current": " A",
+    "inverter_temp": "°C",
+    "irradiance": " W/m²",
 }
 
 WATCHES = {
@@ -83,22 +98,22 @@ WATCHES = {
 }
 
 EVIDENCE_GROUP = {
-    "hour": "Weather station",
-    "irradiance": "Weather station",
-    "ambient_temp": "Weather station",
-    "humidity": "Weather station",
-    "wind_speed": "Weather station",
-    "module_temp": "Thermal sensors T1 to T3",
-    "shading_pct": "Light sensors S1 to S4",
+    "hour": "Weather",
+    "irradiance": "Weather",
+    "ambient_temp": "Weather",
+    "humidity": "Weather",
+    "wind_speed": "Weather",
+    "module_temp": "Heat sensors",
+    "shading_pct": "Shade sensors",
     "dust_index": "Dust sensor",
     "dc_voltage": "Voltage and current sensors",
     "dc_current": "Voltage and current sensors",
     "dc_power_kw": "Voltage and current sensors",
     "inverter_temp": "Inverter temperature sensor",
-    "panel_age": "Panel age record",
+    "panel_age": "Panel age",
 }
 
-LEVEL_NAMES = {-1: "Info", 0: "OK", 1: "Warning", 2: "Alert"}
+LEVEL_NAMES = {-1: "Info", 0: "Normal", 1: "Check", 2: "Problem"}
 
 SCENARIO_SITE = {"hour": 12.0, "irradiance": 850.0, "ambient_temp": 30.0, "humidity": 40.0, "wind_speed": 3.0}
 
@@ -235,40 +250,81 @@ def dust_field(r):
     return np.full((PANEL_ROWS, PANEL_COLS), float(r["dust_index"]))
 
 
+def _assemble(fault, m, site, hot_index=1, shade_pair=(0, 1)):
+    row = dict(site)
+    row["dust_index"] = m["dust_index"]
+    row["panel_age"] = m["panel_age"]
+    row["dc_voltage"] = m["dc_voltage"]
+    row["dc_current"] = m["dc_current"]
+    row["inverter_temp"] = m["inverter_temp"]
+    base = expected_module_temp(site)
+    heat = ["t1", "t2", "t3"]
+    if fault == "Hotspot":
+        offsets = [0.8, -0.6, 0.2]
+        for i, name in enumerate(heat):
+            row[name] = m["module_temp"] if i == hot_index else base + offsets[i]
+    else:
+        offsets = [0.6, 0.0, -0.5]
+        for i, name in enumerate(heat):
+            row[name] = m["module_temp"] + offsets[i]
+    shade = ["s1", "s2", "s3", "s4"]
+    if fault == "Partial Shading":
+        edge = min(100.0, 2 * m["shading_pct"] - 1)
+        for i, name in enumerate(shade):
+            row[name] = edge if i in shade_pair else 1.0
+    else:
+        for name in shade:
+            row[name] = max(float(m["shading_pct"]), 0.5)
+    return {name: snap(name, float(value)) for name, value in row.items()}
+
+
 def build_presets():
     data = generate_dataset(600, 21, site=SCENARIO_SITE, fault_probs=[1 / 6] * 6)
     medians = data.groupby("fault")[
         ["dust_index", "panel_age", "module_temp", "shading_pct", "dc_voltage", "dc_current", "inverter_temp"]
     ].median()
-    base = expected_module_temp(SCENARIO_SITE)
-    presets = {}
-    for fault in FAULTS:
-        m = medians.loc[fault]
-        row = dict(SCENARIO_SITE)
-        row["dust_index"] = m["dust_index"]
-        row["panel_age"] = m["panel_age"]
-        row["dc_voltage"] = m["dc_voltage"]
-        row["dc_current"] = m["dc_current"]
-        row["inverter_temp"] = m["inverter_temp"]
-        if fault == "Hotspot":
-            row["t1"] = base + 0.8
-            row["t2"] = m["module_temp"]
-            row["t3"] = base - 0.6
-        else:
-            row["t1"] = m["module_temp"] + 0.6
-            row["t2"] = m["module_temp"]
-            row["t3"] = m["module_temp"] - 0.5
-        if fault == "Partial Shading":
-            edge = min(100.0, 2 * m["shading_pct"] - 1)
-            row["s1"] = edge
-            row["s2"] = edge
-            row["s3"] = 1.0
-            row["s4"] = 1.0
-        else:
-            for name in ["s1", "s2", "s3", "s4"]:
-                row[name] = max(float(m["shading_pct"]), 0.5)
-        presets[fault] = {name: snap(name, float(value)) for name, value in row.items()}
-    return presets
+    return {fault: _assemble(fault, medians.loc[fault], SCENARIO_SITE) for fault in FAULTS}
+
+
+RANDOM_WEIGHTS = [0.2, 0.16, 0.16, 0.16, 0.16, 0.16]
+SHADE_PAIRS = [(0, 1), (2, 3), (0, 2), (1, 3)]
+
+
+def random_scenario(rng):
+    site = {
+        "hour": snap("hour", rng.uniform(8, 16)),
+        "irradiance": snap("irradiance", rng.uniform(450, 1000)),
+        "ambient_temp": snap("ambient_temp", rng.uniform(18, 40)),
+        "humidity": snap("humidity", rng.uniform(25, 70)),
+        "wind_speed": snap("wind_speed", rng.uniform(0.5, 7)),
+    }
+    fault_index = int(rng.choice(len(FAULTS), p=RANDOM_WEIGHTS))
+    fault = FAULTS[fault_index]
+    probs = [0.0] * len(FAULTS)
+    probs[fault_index] = 1.0
+    row = generate_dataset(1, int(rng.integers(0, 1_000_000)), site=site, fault_probs=probs).iloc[0].copy()
+    if fault == "Degradation":
+        row["panel_age"] = rng.uniform(19, 25)
+    elif fault == "Hotspot":
+        row["module_temp"] = expected_module_temp(site) + rng.uniform(20, 32)
+    if fault != "Degradation" and row["panel_age"] > 12:
+        row["panel_age"] = rng.uniform(1, 12)
+    return _assemble(
+        fault,
+        row,
+        site,
+        hot_index=int(rng.integers(0, 3)),
+        shade_pair=SHADE_PAIRS[int(rng.integers(0, len(SHADE_PAIRS)))],
+    ), fault
+
+
+def evidence_share(grouped):
+    positive = {k: max(v, 0.0) for k, v in grouped.items()}
+    total = sum(positive.values())
+    if total <= 0:
+        positive = {k: abs(v) for k, v in grouped.items()}
+        total = sum(positive.values()) or 1.0
+    return sorted(((k, v / total * 100.0) for k, v in positive.items()), key=lambda item: item[1], reverse=True)
 
 
 def group_evidence(contrib):

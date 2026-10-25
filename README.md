@@ -6,9 +6,9 @@ Solar panel fault detection and power prediction, with a Streamlit dashboard.
 
 One solar panel is drawn with its sensors: three thermal sensors, four light sensors, a dust sensor, voltage and current sensors, an inverter temperature sensor and a weather mast.
 
-- Change any sensor reading and the model detects the fault: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault or Degradation
+- Press Load random readings (the fault is hidden) or move any sensor slider, and the model detects the fault: Normal, Soiling, Partial Shading, Hotspot, Inverter Fault or Degradation
 - Each sensor marker on the panel turns green, amber or red, and hovering shows the fault it watches for
-- SHAP names the sensors that drove the verdict
+- A contribution card shows which sensors contributed how much to the verdict (TreeSHAP, shown as a percentage share)
 - A step-by-step guide explains how to resolve the detected fault
 - Mark the fault as resolved and the affected sensors return to healthy readings
 - Record any set of readings with a note, view them in a log and download it as CSV
